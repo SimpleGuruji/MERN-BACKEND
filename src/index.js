@@ -3,7 +3,9 @@ import dotenv from "dotenv";
 import dbConnection from "./db/connection.js";
 import { app } from "./app.js";
 
-dotenv.config();
+dotenv.config({
+  path: "./.env",
+});
 
 dbConnection()
   .then(() => {
