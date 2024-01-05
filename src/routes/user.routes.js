@@ -50,4 +50,6 @@ router
   .route("/cover-image")
   .patch(verifyJwt, upload.single("cover-image"), updateUserCoverImage);
 
+router.route("/c/:username").get(verifyJwt, getUserChannelProfile);
+
 export default router;
