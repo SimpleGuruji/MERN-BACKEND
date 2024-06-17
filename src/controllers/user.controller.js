@@ -1,7 +1,7 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import { deleteOnCloudinary, uploadOnCloudinary } from "../utils/cloudinary.js";
 
 import { ApiResponse } from "../utils/ApiResponse.js";
 
@@ -265,8 +265,16 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
     throw new ApiError(400, "All feilds are required");
   }
 
-  const user = await User.findByIdAndUpdate(
-    req.user?._id,
+  const user = await User.findById(req.user?._id);
+
+  if (!user) throw new ApiError(404, "User not found.");
+
+  if (user._id.toString() !== req.user?._id?.toString()) {
+    throw new ApiError(401, "You are not authorized to update this user.");
+  }
+
+  const updatedUser = await User.findByIdAndUpdate(
+    user._id,
     {
       $set: {
         fullName,
@@ -278,10 +286,20 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 
   return res
     .status(200)
-    .json(new ApiResponse(200, user, "account details updated successfully"));
+    .json(
+      new ApiResponse(200, updatedUser, "account details updated successfully")
+    );
 });
 
 const updateUserAvatar = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user?._id);
+
+  if (!user) throw new ApiError(404, "User not found.");
+
+  if (user._id.toString() !== req.user?._id?.toString()) {
+    throw new ApiError(401, "You are not authorized to update this user.");
+  }
+
   const avatarLocalPath = req.file?.path;
 
   if (!avatarLocalPath) {
@@ -297,27 +315,44 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
     );
   }
 
-  const user = User.findByIdAndUpdate(
-    req.user?._id,
+  const updatedUser = await User.findByIdAndUpdate(
+    user._id,
     {
       $set: {
         avatar: avatar.url,
       },
     },
     { new: true }
-  ).select("-password");
+  );
 
-  return res.status(200).json(200, user, "Avatar updated successfully");
+  const deletePreviousAvatar = await deleteOnCloudinary(user.avatar);
+
+  if (!deletePreviousAvatar)
+    throw new ApiError(
+      500,
+      "Something went wrong while deleting previous avatar on cloudinary."
+    );
+  return res
+    .status(200)
+    .json(new ApiResponse(200, updatedUser, "Avatar updated successfully"));
 });
 
 const updateUserCoverImage = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user?._id);
+
+  if (!user) throw new ApiError(404, "User not found.");
+
+  if (user._id.toString() !== req.user?._id?.toString()) {
+    throw new ApiError(401, "You are not authorized to update this user.");
+  }
+
   const coverImageLocalPath = req.file?.path;
 
   if (!coverImageLocalPath) {
     throw new ApiError(200, "Cover image file is required");
   }
 
-  const coverImage = await uploadOnCloudinary(avatarLocalPath);
+  const coverImage = await uploadOnCloudinary(coverImageLocalPath);
 
   if (!coverImage.url) {
     throw new ApiError(
@@ -326,17 +361,29 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
     );
   }
 
-  const user = User.findByIdAndUpdate(
-    req.user?._id,
+  const updatedUser = await User.findByIdAndUpdate(
+    user._id,
     {
       $set: {
         coverImage: coverImage.url,
       },
     },
     { new: true }
-  ).select("-password");
+  );
 
-  return res.status(200).json(200, user, "Avatar updated successfully");
+  const deletePreviousCoverImage = await deleteOnCloudinary(user.coverImage);
+
+  if (!deletePreviousCoverImage)
+    throw new ApiError(
+      500,
+      "Something went wrong while deleting previous cover image on cloudinary."
+    );
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, updatedUser, "Cover image updated successfully")
+    );
 });
 
 const getUserChannelProfile = asyncHandler(async (req, res) => {
